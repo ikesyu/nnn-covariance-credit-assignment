@@ -62,31 +62,31 @@ the same images are used for every learning seed, as described in Section 6.4.
 
 ## Internal structure
 
-- `nnn/` — the Noise-modulated Neural Network (NNN) library: crossing
+- `nnn/`: the Noise-modulated Neural Network (NNN) library, with crossing
   activation functions, noise/sampling/readout layers, feedforward models,
   noise samplers and distribution functions, and noise-field utilities.
   `layer.py` and `noise.py` also provide the common-mode noise of Section 6.2
   and the b-bit / LFSR uniform noise of Section 7.2 (off by default).
-- `data_nce/fncl/` — the implementation of all learning rules. Depends on the
+- `data_nce/fncl/`: the implementation of all learning rules. Depends on the
   `nnn/` package (resolved by adding the repository root to `sys.path`).
-  - `constants.py` — shared numerical constants (EPS, NUM_POINTS, ...)
-  - `network.py` — model construction (`build_model`), local derivatives
+  - `constants.py`: shared numerical constants (EPS, NUM_POINTS, ...)
+  - `network.py`: model construction (`build_model`), local derivatives
     (`phi_prime` / `kde_slope`), forward-hook instrumentation (`Capture`)
-  - `perturb.py` — external perturbation gates (`Perturber` etc.; node perturbation)
-  - `train.py` — the learning rules (`train_cov`, `covariance_credit`,
+  - `perturb.py`: external perturbation gates (`Perturber` etc.; node perturbation)
+  - `train.py`: the learning rules (`train_cov`, `covariance_credit`,
     `cov_weight`, `ManualOpt`), the backprop reference (`train_backprop`),
     and inference (`predict`)
-  - `viz.py` — diagnostic plots
-  - `metrics.py` — Pearson correlation, cosine similarity, norm ratio
-  - `mirror.py` — `cov_jac` with interchangeable weight-mirror estimators
+  - `viz.py`: diagnostic plots
+  - `metrics.py`: Pearson correlation, cosine similarity, norm ratio
+  - `mirror.py`: `cov_jac` with interchangeable weight-mirror estimators
     (intrinsic fluctuations, multivariate regression, dedicated perturbation phase)
-  - `baselines.py` — feedback alignment, direct feedback alignment, PEPITA,
+  - `baselines.py`: feedback alignment, direct feedback alignment, PEPITA,
     and the update directions compared in Table 4
-  - `mnist.py` — MNIST subsets, the multiclass NNN, and the cross-entropy
+  - `mnist.py`: MNIST subsets, the multiclass NNN, and the cross-entropy
     versions of `cov_jac` and backprop
-  - `noisefield.py` — the sample-axis noise field (periodic upstream noise,
+  - `noisefield.py`: the sample-axis noise field (periodic upstream noise,
     phase-class centering, rotation of the mirror measurement)
-- `data_nce/fncl_common.py` — the thin shared basis of every `fncl*_*.py`
+- `data_nce/fncl_common.py`: the thin shared basis of every `fncl*_*.py`
   script: running the (seed × method) experiment matrix, saving tables, JSON,
   and figures, and measuring the gradient fidelity in the untrained network.
 
