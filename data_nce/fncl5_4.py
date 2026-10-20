@@ -1,5 +1,5 @@
 """
-fncl5_4.py — 論文 §5.4「アブレーション」(Fig.6)
+fncl5_4.py — 論文 §5.4「アブレーション」(Fig. 4)
 
 同一 seed 集合・同一初期重みで、以下の対比を最終 MSE で比較する:
 
@@ -10,7 +10,7 @@ fncl5_4.py — 論文 §5.4「アブレーション」(Fig.6)
   5. 局所オプティマイザ:   cov_jac sgd vs adam / cov_deriv に adam (逆効果の確認)
 
 生成物 (out/fncl5_4/):
-  fig_ablation_bar.png   -> Fig.6 (最終 MSE 棒グラフ, log, seed 誤差棒)
+  fig_ablation_bar.png   -> Fig. 4 (最終 MSE 棒グラフ, log, seed 誤差棒)
   (標準出力)             -> 数表
   results.json
 

@@ -5,6 +5,7 @@ the same shape as `x`. Each `*_pdf_torch` / `*_cdf_torch` factory returns a
 closure evaluating the distribution element-wise; a tensor-valued scale
 parameter gives per-element distributions via broadcasting.
 """
+import functools
 import math
 from typing import Callable, Union
 
@@ -303,6 +304,83 @@ def uniform_noise_like(center: torch.Tensor, radius: torch.Tensor,
         sampled = c + r_safe * u
         return torch.where(r_safe > epsilon, sampled, torch.zeros_like(input))
     return gen
+
+
+def quantized_uniform_noise_like(center, radius, bits: int,
+                                 epsilon: float = 1e-10) -> Callable[[torch.Tensor], torch.Tensor]:
+    """Returns a sampler for a b-bit QUANTIZED uniform noise on [center - radius, center + radius).
+
+    The 2**bits equiprobable levels sit at the cell centres
+        eta = center + radius * (2 (k + 1/2) / 2**bits - 1),   k = 0 .. 2**bits - 1,
+    i.e. the pmf a b-bit digital random-number generator produces.  With bits <= 0 the
+    continuous `uniform_noise_like` is returned instead.
+    """
+    if bits <= 0:
+        return uniform_noise_like(center, radius, epsilon)
+    levels = float(2 ** bits)
+
+    def gen(input: torch.Tensor) -> torch.Tensor:
+        c = torch.as_tensor(center, device=input.device, dtype=input.dtype)
+        r = torch.as_tensor(radius, device=input.device, dtype=input.dtype)
+        c, r = torch.broadcast_tensors(c, r)
+        r_safe = torch.clamp(r, min=0.0)
+        k = torch.floor(torch.rand_like(input) * levels).clamp_(max=levels - 1.0)
+        u = 2.0 * (k + 0.5) / levels - 1.0
+        sampled = c + r_safe * u
+        return torch.where(r_safe > epsilon, sampled, torch.zeros_like(input))
+    return gen
+
+
+@functools.lru_cache(maxsize=None)
+def lfsr16_sequence(taps=(16, 14, 13, 11), seed: int = 0xACE1) -> torch.Tensor:
+    """The full period (2**16 - 1 states) of a 16-bit Fibonacci LFSR as an int64 tensor.
+
+    taps = (16, 14, 13, 11) is a maximal-length polynomial x^16 + x^14 + x^13 + x^11 + 1.
+    """
+    period = 2 ** 16 - 1
+    state = seed & 0xFFFF
+    out = torch.empty(period, dtype=torch.int64)
+    for i in range(period):
+        out[i] = state
+        bit = 0
+        for tp in taps:
+            bit ^= (state >> (16 - tp)) & 1
+        state = ((state >> 1) | (bit << 15)) & 0xFFFF
+    return out
+
+
+class LFSRUniform:
+    """Per-unit b-bit uniform noise read from a shared maximal 16-bit LFSR sequence.
+
+    Every unit owns its own phase in the sequence (as independent LFSRs seeded
+    differently would), consumes N*T values per call (one per stochastic sample)
+    and keeps the top `bits` bits of the 16-bit state, so the values are exactly
+    the pmf a b-bit LFSR-driven generator emits (clocked `stride` times per sample).
+    `draw(x)` returns u in [-1, 1) shaped like x = [N, T, D].
+    """
+
+    def __init__(self, n_units: int, bits: int, device, seed: int = 0, stride: int = None):
+        self.bits = int(bits)
+        # stride = number of LFSR clocks per emitted sample.  Reading the register every
+        # clock (stride 1) makes consecutive samples share 15 of 16 bits (lag-1 correlation
+        # ~0.5 of the top bits); the usual digital practice is to clock `bits` times per
+        # sample, which is the default here.
+        self.stride = int(stride) if stride is not None else max(1, self.bits)
+        self.seq = lfsr16_sequence().to(device)
+        self.period = self.seq.numel()
+        g = torch.Generator().manual_seed(int(seed))
+        self.phase = torch.randint(0, self.period, (n_units,), generator=g).to(device)
+
+    def draw(self, x: torch.Tensor) -> torch.Tensor:
+        N, T, D = x.shape
+        n = N * T
+        idx = (self.phase.view(1, D)
+               + self.stride * torch.arange(n, device=x.device).view(n, 1)) % self.period
+        v = self.seq[idx] >> (16 - self.bits)                       # [n, D] in 0 .. 2^b - 1
+        levels = float(2 ** self.bits)
+        u = 2.0 * (v.to(x.dtype) + 0.5) / levels - 1.0
+        self.phase = (self.phase + self.stride * n) % self.period
+        return u.view(N, T, D)
 
 
 def uniform_pdf_torch(center: float, radius: Union[float, torch.Tensor],

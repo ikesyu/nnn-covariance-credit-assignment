@@ -1,14 +1,16 @@
 """
 fncl5_2.py — 論文 §5.2「主結果 — cov_jac_adam は backprop 級」(ガウスノイズ)
 
-検証 6 手法 (backprop / cov_only / cov_deriv_analytic / cov_deriv_kde /
-cov_jac_sgd / cov_jac_adam) を複数 seed で学習し、以下を生成する:
+検証 8 手法 (backprop / cov_only / cov_deriv_analytic / cov_deriv_kde /
+cov_jac_sgd / cov_jac_adam / cov_jac_full_sgd / cov_jac_full_adam) を複数 seed で学習し、
+以下を生成する:
 
-  (標準出力)                          -> Tab.1 (最終 MSE 表, seed 別 + mean±std)
-  out/fncl5_2/fig_learning_curves.png -> Fig.3 (学習曲線, 先頭 seed)
-  out/fncl5_2/fig_fit_check.png       -> Fig.4 (fit check: target vs backprop
-                                          vs cov_jac_adam + 残差)
+  (標準出力)                          -> Table 2 (最終 MSE 表, seed 別 + mean±std)
+  out/fncl5_2/fig_learning_curves.png -> Fig. 2(a) 相当の確認図 (学習曲線, 先頭 seed)
+  out/fncl5_2/fig_fit_check.png       -> Fig. 2(b)(c) 相当の確認図 (fit check: target vs
+                                          backprop vs cov_jac_adam + 残差)
   out/fncl5_2/fig_predictions.png     -> 補助図 (全手法の予測)
+  out/fncl5_2/curves_preds.npz        -> Fig. 2 の素材 (fncl5_2_fig.py が合成図を作る)
   out/fncl5_2/results.json            -> 数値一式 (config + final MSE)
 
 実行例:

@@ -1,5 +1,5 @@
 """
-fncl5_3.py — 論文 §5.3「勾配の不偏性の直接検証」(Fig.5)
+fncl5_3.py — 論文 §5.3「勾配再構成の精度の検証」(Fig. 3)
 
 (a) 共分散 weight mirror の回復精度:
       W_hat = Cov_T(d^{(l+1)}, z^{(l)}) / Var_T(z^{(l)})  (入力プーリング)
@@ -13,8 +13,9 @@ fncl5_3.py — 論文 §5.3「勾配の不偏性の直接検証」(Fig.5)
     どちらの推定も --grad-draws 回の確率的 forward で平均してから比較する。
 
 生成物 (out/fncl5_3/):
-  fig_mirror_scatter.png  -> Fig.5a (W_hat vs W 散布図 x3: d 相関 / readout / 二値対照)
-  fig_grad_cosine.png     -> Fig.5b (層別 cosine, cov_jac vs cov_deriv, 2 状態)
+  fig_fidelity.png        -> Fig. 3 ((a)(b) mirror 散布図 + (c) 層別 cosine の合成図)
+  fig_mirror_scatter.png  -> Fig. 3(a)(b) の単体図 (W_hat vs W 散布図 x3: d 相関 / readout / 二値対照)
+  fig_grad_cosine.png     -> Fig. 3(c) の単体図 (層別 cosine, cov_jac vs cov_deriv, 2 状態)
   (標準出力)              -> 数表 (r / cosine / ratio)
   results.json
 

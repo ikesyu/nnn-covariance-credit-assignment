@@ -1,13 +1,14 @@
 """
-fncl_common.py — NCE 論文ドラフト (docs/nce_draft.md) §5 以降の実験スクリプト
-(fncl5_*.py, fncl6_*.py) の共通基盤.
+fncl_common.py — NCE 論文 §5 以降の実験スクリプト (fncl5_*.py, fncl6_*.py, fncl7_*.py)
+の共通基盤.
 
 fncl パッケージ (data_nce/fncl/) のモデル構築・学習ルーチンをそのまま再利用し、
 ここでは
   - 実験行列 (seed × 手法) の実行,
   - 最終 MSE 表の標準出力への表示と results.json の保存,
-  - 図 (PNG) の保存 (ヘッドレス, Agg バックエンド)
-を共通化する。各 fncl5_*.py は「論文のどの図表を作るか」だけを定義する薄い
+  - 図 (PNG) の保存 (ヘッドレス, Agg バックエンド),
+  - 未学習状態の勾配忠実度の測定 (fidelity_untrained) と集計の小道具
+を共通化する。各 fncl*_*.py は「論文のどの図表を作るか」だけを定義する薄い
 スクリプトになる。
 
 すべてのスクリプトは --quick で縮小設定の動作確認ができ、生成物は --out
@@ -250,7 +251,7 @@ def norm_ratio(a: torch.Tensor, b: torch.Tensor) -> float:
 # 検証セット一式 (fncl5_2 / fncl5_5 が使用)
 # ============================================================
 def run_verification(noise: str, args) -> dict:
-    """検証 8 手法を複数 seed で走らせ、Tab.1 / Fig.3 / Fig.4 相当を保存する."""
+    """検証 8 手法を複数 seed で走らせ、Table 2 と Fig. 2 の素材 (学習曲線・予測) を保存する."""
     log_every = max(1, args.epochs // 5)
     mse, curves, preds, target, x_raw = run_matrix(
         VERIFICATION_METHODS, noise, args, log_every)
@@ -271,3 +272,38 @@ def run_verification(noise: str, args) -> dict:
             out / "fig_predictions.png")
     savefig(fncl.plot_fit_check(x_raw, target, preds), out / "fig_fit_check.png")
     return mse
+
+
+# ============================================================
+# 未学習状態の忠実度 (§5.3 と同一プロトコル) と集計の小道具 (§6, §7.2 で共用)
+# ============================================================
+def fidelity_untrained(net, x: torch.Tensor, t: torch.Tensor, draws: int = 32,
+                       mirror_passes: int = 8) -> dict:
+    """cov_jac の更新方向と backprop 参照 (autograd) の層別 cosine と、weight mirror の
+    回復 r (隠れ層 w1 / 読み出し層 wout) を未学習のネットワークで測る。
+    推定量は fncl5_3.py のもの (1 回の forward から mirror を測り、draws 回平均する)。"""
+    from fncl5_3 import (autograd_gradient, averaged, collect_samples,  # noqa: E402
+                         cov_jac_gradient)
+    g_est = averaged(lambda: cov_jac_gradient(net, x, t), draws)
+    g_auto = averaged(lambda: autograd_gradient(net, x, t), draws)
+    cos = {k: cosine(g_est[k], g_auto[k]) for k in g_auto}
+    s = collect_samples(net, x, mirror_passes)
+    r_hidden = pearson(fncl.cov_weight(s["d"][1], s["z"][0], pool=True), net.fcs[1].weight)
+    r_out = pearson(fncl.cov_weight(s["ys"], s["z"][1], pool=True), net.fcs[-1].weight)
+    return {"cos": cos, "mirror_r": {"w1": r_hidden, "wout": r_out}}
+
+
+def epochs_to(losses, threshold: float):
+    """評価 MSE が threshold を初めて下回った epoch (到達しなければ None)."""
+    for i, v in enumerate(losses):
+        if v < threshold:
+            return i
+    return None
+
+
+def mean_std(vals):
+    """None を除いた平均と (母集団) 標準偏差。空なら nan."""
+    a = np.asarray([v for v in vals if v is not None], dtype=float)
+    if a.size == 0:
+        return float("nan"), float("nan")
+    return float(a.mean()), float(a.std())

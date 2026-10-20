@@ -4,10 +4,10 @@ fncl5_2_fig.py — 論文 §5.2 の合成図 (subfigure) を curves_preds.npz �
 fncl5_2.py の本番実行後に走らせる (再学習は不要):
   python data_nce/fncl5_2_fig.py                # プロジェクトルートから実行
   python data_nce/fncl5_2_fig.py --data out/fncl5_2 --formats png,pdf
-  python data_nce/fncl5_2_fig.py --data out/fncl6_2   # §6.2 (uniform) にも使える
+  python data_nce/fncl5_2_fig.py --data out/fncl7_2_1 # §7.2 (uniform) にも使える
 
 生成物 (--data と同じディレクトリ):
-  fig_main_result.png / .pdf
+  fig_main_result.png / .pdf  -> Fig. 2
     (a) 学習曲線 (本文 5 手法, log MSE)
     (b) fit check: target vs backprop / cov_jac (Adam) / cov_jac_full (Adam)
     (c) (b) の残差

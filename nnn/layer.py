@@ -4,6 +4,8 @@ Each `*CrossingLayer` combines a noise source with the corresponding crossing
 activation from `nnn.activation`. Tensor shapes follow the convention
 [N, D] (per input) or [N, T, D] (T stochastic samples per input).
 """
+import math
+
 import torch
 import torch.nn as nn
 
@@ -106,16 +108,28 @@ class GaussianCrossingSampleLayer(nn.Module):
     An `std` given to `forward` overrides and replaces the stored value.
     """
 
-    def __init__(self, std=0.5, h=0.2):
+    def __init__(self, std=0.5, h=0.2, common_mode: float = 0.0):
         super().__init__()
         self.h = h
         self.std = std
         self.noise_layer = GaussianNoiseLayer(std=self.std)
+        # common_mode = rho in [0, 1): fraction of the noise VARIANCE shared by all units
+        # of the layer within a sample, eta_k = std * (sqrt(1-rho) eps_k + sqrt(rho) eps_c).
+        # rho = 0 (default) is the ordinary independent per-unit noise.  Used to inject a
+        # controlled intra-layer fluctuation correlation.
+        self.common_mode = common_mode
 
     def forward(self, x: torch.Tensor, std: float = None) -> torch.Tensor:
         if std is not None:
             self.std = std
-        x = self.noise_layer(x, std=self.std)
+        rho = float(getattr(self, "common_mode", 0.0))
+        if rho > 0.0:
+            s = torch.as_tensor(self.std, device=x.device, dtype=x.dtype)
+            eps_i = torch.randn_like(x)
+            eps_c = torch.randn(*x.shape[:-1], 1, device=x.device, dtype=x.dtype)
+            x = x + s * (math.sqrt(1.0 - rho) * eps_i + math.sqrt(rho) * eps_c)
+        else:
+            x = self.noise_layer(x, std=self.std)
         return activation.CrossingSample.apply(x, self.h)
 
 
@@ -219,15 +233,34 @@ class UniformCrossingSampleLayer(nn.Module):
     that call only.
     """
 
-    def __init__(self, radius: float = 1.0, center: float = 0.0, h: float = 0.1):
+    def __init__(self, radius: float = 1.0, center: float = 0.0, h: float = 0.1,
+                 bits: int = 0, lfsr=None):
         super().__init__()
         self.radius = radius
         self.center = center
         self.h = h
+        # Discrete noise options (digital-generator model):
+        #   bits > 0 : i.i.d. b-bit quantized uniform levels (pmf of a b-bit RNG),
+        #   lfsr     : an `nnn.noise.LFSRUniform` instance -- per-unit b-bit values read
+        #              from a maximal 16-bit LFSR sequence (serial correlation included).
+        # bits == 0 and lfsr is None (default) is the continuous uniform noise.
+        self.bits = bits
+        self.lfsr = lfsr
 
     def forward(self, x: torch.Tensor, radius: float = None) -> torch.Tensor:
         r = radius if radius is not None else self.radius
-        noise_gen = noise.uniform_noise_like(center=self.center, radius=r)
+        lfsr = getattr(self, "lfsr", None)
+        if lfsr is not None:
+            c = torch.as_tensor(self.center, device=x.device, dtype=x.dtype)
+            rr = torch.clamp(torch.as_tensor(r, device=x.device, dtype=x.dtype), min=0.0)
+            eta = c + rr * lfsr.draw(x)
+            return activation.CrossingSample.apply(x + eta, self.h)
+        bits = int(getattr(self, "bits", 0))
+        if bits > 0:
+            noise_gen = noise.quantized_uniform_noise_like(center=self.center, radius=r,
+                                                           bits=bits)
+        else:
+            noise_gen = noise.uniform_noise_like(center=self.center, radius=r)
         return activation.CrossingSample.apply(x + noise_gen(x), self.h)
 
 
